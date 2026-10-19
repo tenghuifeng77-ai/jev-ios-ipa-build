@@ -13,6 +13,10 @@ test "$(git -C "$src" rev-parse HEAD)" = "$expected_source"
 test -z "$(git -C "$src" status --porcelain)"
 xcodebuild -version | tee "$logs/xcode-version.txt"
 
+# Verify real outgoing requests against a local provider contract before packaging.
+python3 "$root/tests/request_contract.py" "$src" "$build_root" \
+  2>&1 | tee "$logs/request-contract.log"
+
 # Run upstream's existing offline checks without changing application code.
 swiftc -swift-version 5 -o "$build_root/prompt-check" \
   "$src/tools/PromptCheck/main.swift" "$src"/Shared/*.swift \
