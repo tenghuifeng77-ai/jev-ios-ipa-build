@@ -1,0 +1,34 @@
+Jev iOS 键盘版：自行重签安装说明
+
+本包基于上游公开源码原样编译，未改动 App、键盘或模型逻辑。
+来源：https://github.com/jev-chat/jev-chat-jarvis-ios
+源码提交：f4b64cc655415091180e4c0573a2a82ca4319212
+
+1. 文件用途
+JevKeyboard-0.1.0-resign.ipa 是 arm64 真机 Release 包，最低 iOS 16。
+它仅带本地 ad-hoc 签名以携带权限信息，没有可用于安装的 Apple 证书签名。
+请使用你自己的有效签名资料和侧载工具重签后安装。
+
+2. 重签必须同时处理主 App 和键盘扩展
+主 App：com.jevchat.jarvis
+键盘扩展：com.jevchat.jarvis.keyboard
+两者必须属于同一个签名 Team，并可访问同一个 App Group。
+原始 App Group：group.com.jevchat.jarvis
+原始权限文件附在 App.entitlements.plist 和 Keyboard.entitlements.plist。
+
+当前源码把 App Group 标识写在共享代码中。单纯更改 Bundle ID 或删除
+App Group 权限，可能导致主 App 能运行、键盘却读不到模型设置。
+如果签名服务不能授权该 App Group，需要适配源码与权限后重新编译；
+不能保证任意侧载工具、证书都能完整支持键盘共享配置。
+
+3. 安装后启用
+设置 > 通用 > 键盘 > 键盘 > 添加新键盘，选择 Jev 键盘。
+进入该键盘设置，开启“允许完全访问”，以便调用你配置的模型接口。
+在主 App 的“模型”页填写自己的模型服务地址、模型名和 API Key。
+先在“试一试”页面验证，再在聊天 App 中复制对方消息、切换到 Jev 键盘、
+点击“分析剪贴板”，选择回复填入输入框。发送由你手动完成。
+
+4. 已验证范围
+构建产物附带上游回归检查、真机架构与扩展结构检查结果和 SHA-256。
+编译通过不等于已完成 iPhone 真机测试；你的重签和实际安装仍需验证。
+本包不包含你的 API Key、Apple 证书、私钥或聊天数据。
