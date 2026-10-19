@@ -1,0 +1,119 @@
+diff --git a/App/Sources/SetupView.swift b/App/Sources/SetupView.swift
+index 6dbcfda..db060af 100644
+--- a/App/Sources/SetupView.swift
++++ b/App/Sources/SetupView.swift
+@@ -62,8 +62,8 @@ struct SetupView: View {
+ 
+             row(icon: "externaldrive.connected.to.line.below", title: jevLocalized(store.language, zh: "App Group 共享", en: "App Group sharing"),
+                 ok: groupOK, detail: groupOK
+-                    ? jevLocalized(store.language, zh: "配置可以同步到键盘", en: "Configuration syncs to the keyboard")
+-                    : jevLocalized(store.language, zh: "共享容器不可用：请确认用 Xcode 把 App 和键盘扩展签在同一个 Team 下", en: "The shared container is unavailable. Sign both targets with the same Team."))
++                    ? jevLocalized(store.language, zh: "共享容器可用。请唤起键盘后返回，确认上方键盘状态已刷新", en: "The shared container is available. Open the keyboard, then return and check that its status has refreshed.")
++                    : jevLocalized(store.language, zh: "没有可用的共享容器：请检查主 App 与键盘扩展的 App Group 签名授权", en: "No shared container is available. Check App Group signing permissions for both the app and keyboard extension."))
+         } header: {
+             Text(jevLocalized(store.language, zh: "状态", en: "Status"))
+         } footer: {
+diff --git a/Keyboard/Sources/KeyboardViewController.swift b/Keyboard/Sources/KeyboardViewController.swift
+index 4495edc..4697b65 100644
+--- a/Keyboard/Sources/KeyboardViewController.swift
++++ b/Keyboard/Sources/KeyboardViewController.swift
+@@ -78,7 +78,7 @@ final class KeyboardViewController: UIInputViewController {
+ 
+     override func viewDidAppear(_ animated: Bool) {
+         super.viewDidAppear(animated)
+-        statusLabel.text = hasFullAccess ? L("Jev · 已连接", "Jev · Connected")
++        statusLabel.text = hasFullAccess ? L("Jev · 完全访问已开启", "Jev · Full Access enabled")
+             : L("Jev · 需要完全访问", "Jev · Full Access required")
+         render()
+         // 回写状态：主 App「开始」页据此显示键盘是否已启用、是否给了完全访问
+@@ -125,7 +125,7 @@ final class KeyboardViewController: UIInputViewController {
+             dot.heightAnchor.constraint(equalToConstant: 8),
+         ])
+ 
+-        statusLabel = KB.label(hasFullAccess ? L("Jev · 已连接", "Jev · Connected") : L("Jev · 需要完全访问", "Jev · Full Access required"),
++        statusLabel = KB.label(hasFullAccess ? L("Jev · 完全访问已开启", "Jev · Full Access enabled") : L("Jev · 需要完全访问", "Jev · Full Access required"),
+                                font: .systemFont(ofSize: 12, weight: .medium), color: KB.secondaryText)
+ 
+         let title = UIStackView(arrangedSubviews: [dot, statusLabel])
+@@ -387,7 +387,11 @@ final class KeyboardViewController: UIInputViewController {
+         let vstack = UIStackView(arrangedSubviews: [guide, btnRow, tonesBtn])
+         vstack.axis = .vertical
+         vstack.spacing = 8
+-        if JevDraft(cfg: cfg).isConfigured {
++        if JevStore.sharedGroupID == nil {
++            let warn = KB.label(L("⚠️ 共享配置不可用：请检查主 App 与键盘的 App Group 签名授权", "⚠️ Shared settings unavailable: check App Group signing permissions for the app and keyboard"),
++                                font: .systemFont(ofSize: 12), color: .systemOrange, lines: 0)
++            vstack.addArrangedSubview(warn)
++        } else if JevDraft(cfg: cfg).isConfigured {
+             // 配置完整时不占行
+         } else {
+             let warn = KB.label(L("⚠️ 还没配置生成层：打开 Jev Jarvis App →「模型」页填 API Key", "⚠️ Generation is not configured: open Jev Jarvis → Models and add an API key"),
+diff --git a/Shared/JevModel.swift b/Shared/JevModel.swift
+index 987a46d..a6ffb98 100644
+--- a/Shared/JevModel.swift
++++ b/Shared/JevModel.swift
+@@ -123,18 +123,63 @@ struct KeyboardStatus: Codable, Equatable {
+ /// 配置与状态的唯一存放点。键值放 App Group UserDefaults：
+ /// 键盘扩展只有拿到「允许完全访问」后才能读共享容器，正好与联网条件一致。
+ enum JevStore {
+-    static let appGroupID = "group.com.jevchat.jarvis"
++    private static let originalAppGroupID = "group.com.jevchat.jarvis"
++    static var appGroupID: String { sharedGroupID ?? originalAppGroupID }
+     private static let configKey = "jev.config.v1"
+     private static let removedGenerationBase = "http://101.132.131.220:11111/v1"
+     private static let statusKey = "jev.kbstatus.v1"
+     private static let canaryKey = "jev.canary.v1"
+ 
++    // 重签工具可能替换 App Group 授权，却不修改程序里的组名。
++    // 描述文件仅提供候选；能否使用共享容器仍由系统权限检查决定。
++    private static let provisionedGroups: [String] = {
++        guard let url = Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision"),
++              let data = try? Data(contentsOf: url) else { return [] }
++        return profileGroups(data)
++    }()
++
++    static var sharedGroupID: String? {
++        selectAppGroup(groups: provisionedGroups, isAvailable: { group in
++            guard let url = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: group) else {
++                return false
++            }
++            var isDirectory: ObjCBool = false
++            return FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
++                && isDirectory.boolValue
++        })
++    }
++
++    static func resolveAppGroup(profileData: Data?, isAvailable: (String) -> Bool) -> String? {
++        selectAppGroup(groups: profileData.map(profileGroups) ?? [], isAvailable: isAvailable)
++    }
++
++    private static func selectAppGroup(groups: [String], isAvailable: (String) -> Bool) -> String? {
++        if isAvailable(originalAppGroupID) { return originalAppGroupID }
++        // 主 App 与扩展使用相同排序，避免描述文件数组顺序不同导致各读各的容器。
++        return Set(groups).sorted().first(where: isAvailable)
++    }
++
++    private static func profileGroups(_ data: Data) -> [String] {
++        guard data.count <= 1_048_576,
++              let start = data.range(of: Data("<?xml".utf8)),
++              let end = data.range(of: Data("</plist>".utf8), in: start.lowerBound..<data.endIndex),
++              let root = try? PropertyListSerialization.propertyList(
++                from: data.subdata(in: start.lowerBound..<end.upperBound), options: [], format: nil),
++              let dictionary = root as? [String: Any],
++              let entitlements = dictionary["Entitlements"] as? [String: Any],
++              let groups = entitlements["com.apple.security.application-groups"] as? [String] else {
++            return []
++        }
++        return groups.filter { $0.hasPrefix("group.") && $0.count > 6 }
++    }
++
+     static var defaults: UserDefaults {
+         UserDefaults(suiteName: appGroupID) ?? .standard
+     }
+ 
+     /// App Group 容器是否真的可写可读（签名没带上 entitlement 时 suite 会静默退化为私有容器）。
+     static var groupWritable: Bool {
++        guard sharedGroupID != nil else { return false }
+         let stamp = "t\(Date().timeIntervalSince1970)"
+         defaults.set(stamp, forKey: canaryKey)
+         return defaults.string(forKey: canaryKey) == stamp

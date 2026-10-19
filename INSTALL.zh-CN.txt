@@ -1,11 +1,11 @@
 Jev iOS 键盘版：自行重签安装说明
 
-本包基于上游公开源码，包含 GPT-6.1 Sol 兼容修复；完整修改见 SOURCE-CHANGES.patch。
+本包基于上游公开源码，包含 GPT-6.1 Sol 兼容及重签共享组适配修复；完整修改见 SOURCE-CHANGES.patch。
 来源：https://github.com/jev-chat/jev-chat-jarvis-ios
 源码提交：f4b64cc655415091180e4c0573a2a82ca4319212
 
 1. 文件用途
-JevKeyboard-0.1.0-gpt61-fix-resign.ipa 是 arm64 真机 Release 包，最低 iOS 16，build 3。
+JevKeyboard-0.1.0-appgroup-fix-resign.ipa 是 arm64 真机 Release 包，最低 iOS 16，build 4。
 它仅带本地 ad-hoc 签名以携带权限信息，没有可用于安装的 Apple 证书签名。
 请使用你自己的有效签名资料和侧载工具重签后安装。
 
@@ -16,10 +16,17 @@ JevKeyboard-0.1.0-gpt61-fix-resign.ipa 是 arm64 真机 Release 包，最低 iOS
 原始 App Group：group.com.jevchat.jarvis
 原始权限文件附在 App.entitlements.plist 和 Keyboard.entitlements.plist。
 
-当前源码把 App Group 标识写在共享代码中。单纯更改 Bundle ID 或删除
-App Group 权限，可能导致主 App 能运行、键盘却读不到模型设置。
-如果签名服务不能授权该 App Group，需要适配源码与权限后重新编译；
-不能保证任意侧载工具、证书都能完整支持键盘共享配置。
+本版优先使用原始组；原始组不可用时，从各自 embedded.mobileprovision
+读取候选组，并只选系统允许访问的共享容器。候选组按名称排序，
+因此主 App 与键盘的描述文件应包含同一组共享组授权。
+此功能不增加签名权限；如果两者没有共同可用的组，仍无法共享配置。
+构建包不包含任何用户的描述文件、证书或固定私人组名。
+
+使用全能签重签时，同时保留主 App 和键盘扩展，并使用你当前的签名资料。
+覆盖安装后先打开主 App，检查“开始”页共享容器状态，再到“模型”页
+确认生成层配置并测试连接。如果密钥显示未配置，重新填写原来的密钥即可。
+切到 Jev 键盘一次后返回主 App，检查“键盘已启用”的最近使用时间是否刷新。
+这一步验证配置容器的双向共享，不要只看旧版的“已连接”文字。
 
 3. 安装后启用
 设置 > 通用 > 键盘 > 键盘 > 添加新键盘，选择 Jev 键盘。
