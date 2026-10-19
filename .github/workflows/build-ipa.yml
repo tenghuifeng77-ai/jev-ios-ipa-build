@@ -1,0 +1,46 @@
+name: Build Jev iOS for re-signing
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - name: Check out build tools
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Check out unmodified upstream source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: jev-chat/jev-chat-jarvis-ios
+          ref: f4b64cc655415091180e4c0573a2a82ca4319212
+          path: source
+
+      - name: Check build script syntax
+        run: bash -n scripts/build-ipa.sh
+
+      - name: Build, check and package device app
+        run: bash scripts/build-ipa.sh
+
+      - name: Upload IPA and installation notes
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: JevKeyboard-iOS-resign
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload diagnostic logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: JevKeyboard-build-logs
+          path: logs/
+          if-no-files-found: ignore
+          retention-days: 7
+
