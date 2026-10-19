@@ -17,6 +17,12 @@ git -C "$src" apply "$patch"
 git -C "$src" diff --check
 xcodebuild -version | tee "$logs/xcode-version.txt"
 
+# Exercise the shared-container selection before contacting the local HTTP fixture.
+swiftc -swift-version 5 -parse-as-library -o "$build_root/shared-group-check" \
+  "$root/tests/SharedGroupCheck/main.swift" "$src"/Shared/*.swift \
+  2>&1 | tee "$logs/shared-group-check-build.log"
+"$build_root/shared-group-check" 2>&1 | tee "$logs/shared-group-check.log"
+
 # Verify real outgoing requests against a local provider contract before packaging.
 python3 "$root/tests/request_contract.py" "$src" "$build_root" \
   2>&1 | tee "$logs/request-contract.log"
